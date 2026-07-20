@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>泡泡堂</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <script>
+    /* 首页皮肤随机二选一：skin-sea（原版海底，默认）/ skin-village（官方「小区」复刻）。
+       两套皮肤共用 logo 与登录面板，功能按钮位置完全一致，仅背景层互换。
+       可用 #sea / #village 锚点强制指定（方便对照调试）。 */
+    const forced = { '#sea': 'skin-sea', '#village': 'skin-village' }[location.hash];
+    document.documentElement.classList.add(forced || (Math.random() < 0.5 ? 'skin-sea' : 'skin-village'));
+  </script>
+  <div id="app">
+    <section id="view-login" class="view">
+      <div class="login-bg">
+        <div class="login-rays"></div>
+        <span class="lb" style="--x:6%;  --s:14px; --t:13s; --d:-3s"></span>
+        <span class="lb" style="--x:14%; --s:26px; --t:17s; --d:-9s"></span>
+        <span class="lb" style="--x:22%; --s:10px; --t:11s; --d:-6s"></span>
+        <span class="lb" style="--x:31%; --s:34px; --t:19s; --d:-13s"></span>
+        <span class="lb" style="--x:42%; --s:12px; --t:12s; --d:-1s"></span>
+        <span class="lb" style="--x:55%; --s:20px; --t:15s; --d:-8s"></span>
+        <span class="lb" style="--x:64%; --s:9px;  --t:10s; --d:-4s"></span>
+        <span class="lb" style="--x:72%; --s:28px; --t:18s; --d:-11s"></span>
+        <span class="lb" style="--x:81%; --s:13px; --t:12s; --d:-7s"></span>
+        <span class="lb" style="--x:90%; --s:22px; --t:16s; --d:-2s"></span>
+        <span class="lb" style="--x:95%; --s:10px; --t:11s; --d:-5s"></span>
+      </div>
+
+      <span class="login-chip">⚡ WebSocket 多人对战</span>
+      <button id="btn-music" class="login-music" type="button" title="背景音乐开关">♪</button>
+      <span id="music-hint" class="music-hint">点我开音乐 🔊</span>
+      <div class="login-age"><b>8+</b><span>Web 复刻</span></div>
+
+      <!-- 漂浮的道具泡（官方 Gift 帧图装进玻璃泡；有的泡是空的） -->
+      <div class="gift g1"><img src="/assets/items2/bubble.png" alt="水泡精"></div>
+      <div class="gift g2"><img src="/assets/items2/potion.png" alt="力量水"></div>
+      <div class="gift g3"><img src="/assets/items2/gremlin.png" alt="紫魔"></div>
+      <div class="gift g4"><img src="/assets/items2/shoe.png" alt="白鞋"></div>
+      <div class="gift g5"><img src="/assets/items2/bee.png" alt="小蜂"></div>
+      <div class="gift g6"><img src="/assets/items2/ufo.png" alt="飞碟"></div>
+      <div class="gift g7"><img src="/assets/items2/pill.png" alt="大力丸"></div>
+      <div class="gift g8"><img src="/assets/items2/turtle.png" alt="绿乌龟"></div>
+      <div class="gift empty g9"></div>
+      <div class="gift empty g10"></div>
+      <!-- 大号空泡：背景纵深 -->
+      <div class="gift empty big g11"></div>
+      <div class="gift empty big g12"></div>
+      <div class="gift empty big g13"></div>
+      <div class="gift empty g14"></div>
+      <div class="gift empty g15"></div>
+
+      <!-- 皮肤 B：官方「小区」场景复刻（纯 CSS 绘制 + 名册角色立牌；html.skin-village 时显示） -->
+      <div class="village-bg" aria-hidden="true">
+        <!-- 底部石板路 -->
+        <div class="v-pavement"></div>
+        <!-- 蓝天 + 远山 + 云 -->
+        <div class="v-sky">
+          <div class="v-hills"></div>
+          <span class="v-cloud cl1"></span>
+          <span class="v-cloud cl2"></span>
+          <span class="v-cloud cl3"></span>
+          <span class="v-cloud cl4"></span>
+          <span class="v-cloud cl5"></span>
+        </div>
+        <!-- 飞艇 -->
+        <div class="v-airship">
+          <span class="v-ship-fin top"></span>
+          <span class="v-ship-fin bot"></span>
+          <span class="v-ship-prop"></span>
+          <span class="v-ship-car"></span>
+        </div>
+        <!-- 主岛草地 + 左右浅蓝甲板 -->
+        <div class="v-grass"></div>
+        <div class="v-pad left"></div>
+        <div class="v-pad right"></div>
+        <!-- 右甲板蓝色滑道 -->
+        <div class="v-slide"></div>
+        <!-- 土路（中轴一路通到雕像木梯） -->
+        <div class="v-path-b"></div>
+        <div class="v-path-a"></div>
+        <!-- 建筑 -->
+        <div class="v-houses-b"></div>
+        <div class="v-house"><span class="v-house-roof"></span></div>
+        <div class="v-shop"></div>
+        <!-- 树木花草 -->
+        <div class="v-pine p1"><i></i></div>
+        <div class="v-pine p2"><i></i></div>
+        <div class="v-pine p3"><i></i></div>
+        <div class="v-treer r1"></div>
+        <div class="v-treer r2"></div>
+        <div class="v-treea"></div>
+        <div class="v-flower"></div>
+        <!-- 中央雕像：kimi k3 官方形象（蓝球 + 墨镜，官方 SVG）+ 木梯 -->
+        <div class="v-statue">
+          <span class="v-bush"></span>
+          <span class="v-swirl"></span>
+          <img class="v-kimi" src="/assets/kimi-k3.svg" alt="kimi k3">
+          <span class="v-ladder"></span>
+        </div>
+        <!-- 雨云池塘 + 棕榈 + 红叉 -->
+        <div class="v-pond">
+          <div class="v-pond-water"><span class="v-duck"></span></div>
+          <span class="v-raincloud"></span>
+          <span class="v-rain"></span>
+          <span class="v-xsign">×</span>
+        </div>
+        <div class="v-palm"></div>
+        <!-- 蘑菇 -->
+        <span class="v-shroom s1"></span>
+        <span class="v-shroom s2"></span>
+        <!-- 官方「基本角色」立牌（官网游戏角色资料整版立绘，assets/chars/） -->
+        <img class="v-char c-pangdun" src="/assets/chars/pangdun.png" alt="">
+        <img class="v-char c-pidan" src="/assets/chars/pidan.png" alt="">
+        <img class="v-char c-lanlan" src="/assets/chars/lanlan.png" alt="">
+        <img class="v-char c-congtou" src="/assets/chars/congtou.png" alt="">
+        <!-- 左甲板：大圆键 + 十字键 -->
+        <div class="v-disc"></div>
+        <div class="v-dpad">
+          <span class="v-dbtn b1"></span>
+          <span class="v-dbtn b2"></span>
+          <span class="v-dbtn b3"></span>
+          <span class="v-dbtn b4"></span>
+          <span class="v-dbtn b5"></span>
+          <span class="v-dbtn b6"></span>
+        </div>
+        <!-- 右甲板：白色光标大手 -->
+        <div class="v-hand">
+          <span class="v-hand-bumps"></span>
+          <span class="v-hand-finger"></span>
+          <span class="v-hand-thumb"></span>
+          <span class="v-hand-palm"></span>
+        </div>
+        <!-- t 字天线路牌 -->
+        <div class="v-tsign"><span class="v-tsign-coil"></span><span class="v-tsign-top">t</span></div>
+        <!-- 1P / 2P 大按钮 -->
+        <div class="v-pbtn p1">1P</div>
+        <div class="v-pbtn p2">2P</div>
+      </div>
+
+      <div class="login-center">
+        <h1 class="login-logo">泡泡堂</h1>
+        <p class="login-sub">经典地图「海盗 14」 · 6 人乱斗 · 真人不足 Bot 补位</p>
+        <div class="login-panel">
+          <label for="name-input">输 入 昵 称</label>
+          <div class="login-namerow">
+            <input id="name-input" maxlength="12" placeholder="例如：泡泡战士" autocomplete="off">
+            <button id="btn-dice" type="button" title="随机昵称">🎲</button>
+          </div>
+          <button id="btn-login" class="login-btn">进 入 大 厅</button>
+          <p class="login-tip">回车快速进入 · 骰子随机昵称</p>
+        </div>
+      </div>
+
+      <footer class="login-foot">
+        <div class="lf-col">泡泡堂 Web 复刻练习版<br>素材源自盛大 · 仅供学习交流</div>
+        <div class="lf-col">方向键 / WASD 移动 · 空格放泡<br>Ctrl 使用道具（针自救 / 遥控引爆）</div>
+        <div class="lf-col">Ver 1.0 · WebSocket 对战<br>Copyright © Web Remake</div>
+      </footer>
+    </section>
+
+    <section id="view-lobby" class="view hidden">
+      <div class="ldb-frame">
+        <div class="ldb-toolbar">
+          <button id="btn-create" class="ldb-btn orange">开设房间</button>
+          <button id="btn-quick" class="ldb-btn orange">快速加入</button>
+          <span class="ldb-toolbar-gap"></span>
+          <span class="ldb-title">游戏大厅</span>
+          <span class="ldb-toolbar-gap"></span>
+          <button id="btn-practice" class="ldb-btn blue">练习模式</button>
+          <button id="btn-help" class="ldb-btn blue round" title="帮助">?</button>
+        </div>
+        <div id="lobby-help" class="ldb-help hidden">
+          开设房间创建新对局；快速加入自动进入第一个可加入的房间；练习模式立刻单人开局（Bot 补满 6 人）。<br>
+          操作：方向键 / WASD 移动 · 空格放水泡 · Ctrl/Shift 使用道具（针自救 / 放遥控水泡）。
+        </div>
+        <div class="ldb-board">
+          <aside class="ldb-me">
+            <div class="ldb-avatar"><img id="me-flag" class="ldb-avatar-flag" alt=""><span class="ldb-avatar-q">?</span></div>
+            <div id="me-card" class="ldb-me-card">
+              <img id="me-card-bg" class="ldb-me-card-bg" alt="">
+              <div class="ldb-me-card-row">
+                <b id="lobby-name"></b>
+                <img id="me-medal" class="ldb-me-ico" alt="勋章">
+              </div>
+            </div>
+            <div class="ldb-waiting">空闲中</div>
+            <p class="ldb-me-tip">点击右侧房间卡片加入对局，全都满员就自己开一间吧！</p>
+          </aside>
+          <ul id="room-list" class="ldb-rooms"></ul>
+        </div>
+        <div class="ldb-bottombar">
+          <button id="btn-page-prev" class="ldb-btn green page">◀</button>
+          <span id="page-info" class="ldb-page-info">- 1 -</span>
+          <button id="btn-page-next" class="ldb-btn green page">▶</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-room" class="view hidden">
+      <div class="ldb-frame">
+        <div class="room-topbar">
+          <h2 id="room-title" class="room-title"></h2>
+          <span id="room-count" class="room-count"></span>
+          <span class="room-ops">地图：海盗14（固定） · 方向键/WASD 移动 · 空格放泡 · Ctrl 道具</span>
+          <span class="ldb-toolbar-gap"></span>
+          <button id="btn-leave" class="ldb-btn blue">离开房间</button>
+        </div>
+
+        <div class="room-board">
+          <!-- 左：玩家槽位（3×2）+ 底行（聊天 + 固定地图） -->
+          <div class="room-left">
+            <div id="slots-grid" class="room-slots"></div>
+            <div class="room-left-bottom">
+              <div class="room-chat">
+                <div id="chat-log" class="chat-log"></div>
+                <div class="chat-bar">
+                  <span class="chat-to">所有人</span>
+                  <input id="chat-input" maxlength="64" placeholder="输入聊天内容，回车发送" autocomplete="off">
+                  <button id="btn-chat-send" class="ldb-btn green">发送</button>
+                </div>
+              </div>
+              <div class="room-box room-map">
+                <div class="room-map-thumb"><canvas id="room-map-thumb" width="240" height="208"></canvas></div>
+                <div class="room-map-info">
+                  <div class="room-map-name">海盗 14</div>
+                  <div class="room-map-desc">固定地图 · 经典对称乱斗</div>
+                  <div class="room-map-tag">当前地图</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右：当前角色 / 选择角色 / 队伍颜色 / 固定地图 / 开始按钮 -->
+          <div class="room-right">
+            <div class="room-mychar">
+              <div id="mychar-portrait" class="mychar-portrait"></div>
+              <div class="mychar-info">
+                <div id="mychar-name" class="mychar-name"></div>
+                <div id="mychar-desc" class="mychar-desc"></div>
+                <div id="mychar-stats" class="mychar-stats"></div>
+              </div>
+            </div>
+
+            <div class="room-box">
+              <div class="room-box-title">选择角色<span>名册 8 名 · 当前开放 2 名</span></div>
+              <div id="char-grid" class="room-char-grid"></div>
+            </div>
+
+            <div class="room-box">
+              <div class="room-box-title">队伍颜色<span>按进房顺序自动分配</span></div>
+              <div id="color-row" class="color-row"></div>
+            </div>
+
+            <div class="room-actionbar">
+              <p id="start-hint"></p>
+              <button id="btn-ready" class="room-bigbtn green hidden">准 备</button>
+              <button id="btn-start" class="room-bigbtn orange hidden">开 始</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-game" class="view hidden">
+      <div class="game-main">
+        <div class="canvas-wrap">
+          <canvas id="game-canvas" width="600" height="520"></canvas>
+          <div id="countdown" class="hidden"></div>
+          <div id="overlay" class="hidden">
+            <div id="overlay-confetti"></div>
+            <div id="overlay-card">
+              <div id="overlay-effect"></div>
+              <div id="overlay-avatar"></div>
+              <div id="overlay-text"></div>
+              <div id="overlay-stats"></div>
+              <button id="btn-back" class="primary">返回房间</button>
+            </div>
+          </div>
+        </div>
+        <aside id="side-panel">
+          <div id="hud" class="hud"></div>
+          <div class="side-box">
+            <h3>对战玩家</h3>
+            <div id="player-list"></div>
+          </div>
+          <div class="side-box">
+            <h3>道具说明</h3>
+            <div id="item-legend"></div>
+          </div>
+          <p class="hint side-hint">方向键 / WASD 移动 · 空格放水泡（场上有自己的遥控泡时改为引爆） · Ctrl/Shift 使用道具 · 顶住花纹木箱长按方向键可推动它（无阻挡时）</p>
+        </aside>
+      </div>
+    </section>
+  </div>
+  <div id="toast" class="hidden"></div>
+  <script type="module">
+    /* 首页专属：骰子随机昵称 + ♪ 静音开关（音频统一走 client/audio.js 的 AudioManager） */
+    import { audio } from '/audio.js';
+
+    /* ♪ 按钮：全局静音开关（localStorage 持久化，跨场景生效） */
+    const musicBtn = document.getElementById('btn-music');
+    const hint = document.getElementById('music-hint');
+    // 浏览器不允许无手势自动播放：开播前用“点我开音乐”引导，首次 BGM 真正响起后隐藏
+    const refresh = () => {
+      musicBtn?.classList.toggle('off', audio.muted);
+      hint?.classList.toggle('hidden', audio.muted);
+    };
+    audio.onMuteChange(refresh);
+    audio.onPlaying(() => hint?.classList.add('hidden'));
+    refresh();
+    musicBtn?.addEventListener('click', () => {
+      audio.toggleMuted();
+      audio.sfx('get', 0.45);
+    });
+
+    /* 进大厅按键音（BGM 场景切换由 main.js show → sceneMusic 统一处理） */
+    document.getElementById('btn-login')?.addEventListener('click', () => audio.sfx('start', 0.7));
+
+    /* 骰子随机昵称 */
+    const FIRST = ['快乐', '无敌', '闪电', '暴走', '泡泡', '奶茶', '深海', '元气', '榴莲', '章鱼', '海盗', '甜心', '蓝莓', '冲锋'];
+    const SECOND = ['宝宝', '小乖', '战士', '船长', '鱼丸', '果冻', '皮皮', '球球', '大侠', '萌新', '骑士', '魔王', '胖胖', '糖豆'];
+    const dice = document.getElementById('btn-dice');
+    const input = document.getElementById('name-input');
+    dice?.addEventListener('click', () => {
+      const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+      let name = pick(FIRST) + pick(SECOND);
+      if (Math.random() < 0.25) name += ((Math.random() * 98) | 0) + 1;
+      input.value = name.slice(0, 12);
+      dice.classList.remove('rolling');
+      void dice.offsetWidth; /* 重触动画 */
+      dice.classList.add('rolling');
+      audio.sfx('get', 0.55);
+      input.focus();
+    });
+
+    audio.playScene('login'); // 首页 BGM（浏览器拦截时由 AudioManager 在首次手势补播）
+  </script>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
