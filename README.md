@@ -4,9 +4,7 @@
 
 ![](images/game.png)
 
-在线试玩：[k399.games](https://www.k399.games/)（无需注册，输入名字即可开战）
-
-[![k399.games](images/k399.png)](https://www.k399.games/)
+在线试玩：https://h3aajdlti6teq.kimi.site ，无需注册，输入名字即可开战
 
 欢迎使用 K3 复刻更多地图和玩法，发 PR 合并。
 
