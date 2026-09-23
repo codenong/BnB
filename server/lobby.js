@@ -118,6 +118,7 @@ export class Lobby {
       }],
       inGame: false, game: null, brains: null, interval: null,
     };
+    console.log(`New room id: ${room.id}`);
     this.rooms.set(room.id, room);
     client.roomId = room.id;
     this.broadcastRoomState(room);

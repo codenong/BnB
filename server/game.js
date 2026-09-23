@@ -165,6 +165,11 @@ export class Game {
       p.inv.needle--;
       p.trapped = false;
       p.trapTicks = 0;
+      // 自救瞬间人还站在原地，若脚下这团爆炸还没烧完会立刻被同一团火重新点着，
+      // 针就白费了——补一段无敌帧，和坐骑挡炸那段（applyFlameDamage 里
+      // "落地短暂无敌，否则立刻被同一团火困住"）保持一致
+      p.grace = EXPLOSION_TICKS + 4;
+
       return true;
     }
     return this.placeBomb(id, true);
