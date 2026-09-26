@@ -5,6 +5,7 @@ export const C = {
   HELLO: 'hello',          // {t, name} 登录（只需名字）
   CREATE_ROOM: 'createRoom',
   JOIN_ROOM: 'joinRoom',   // {t, roomId}
+  SPECTATE_ROOM: 'spectateRoom', // {t, roomId} 纯观战：不占玩家位、不用选角色，能看到房间和对局的完整广播
   LEAVE_ROOM: 'leaveRoom',
   READY: 'ready',          // {t, ready}
   SELECT_CHAR: 'selectChar', // {t, char} 房间内选择角色

@@ -20,39 +20,93 @@ const key = (x, y) => `${x},${y}`;
 const DIRS4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
 // 成长类道具：速度鞋、泡泡数、红魔（瞬间拉满速度）——空档期优先抢
-const GROWTH_ITEMS = new Set(['shoe', 'bubble', 'devil']);
+// const GROWTH_ITEMS = new Set(['shoe', 'bubble', 'devil']);
+
+// kind	含义
+// 'shoe'	速度鞋
+// 'bubble'	泡泡数+1
+// 'potion'	威力泡泡
+// 'devil'	红魔（瞬间拉满速度）
+// 'gremlin'	紫魔（瞬间拉满威力）
+// 'needle'	针（被困自救用）
+// 'remote'	遥控器
+// 'kick'	踢泡泡能力
+
+// 把 GROWTH_ITEMS 单个集合换成优先级梯队,findObjective 依次尝试:先看场上有没有第一梯队(速度/泡泡数)能走到的,有就先去;没有再看第二梯队(威力),都没有才回落到原来的逻辑。
+// const GROWTH_TIERS = [
+//   new Set(['owl', 'pirateTurtle']), // 坐骑
+//   new Set(['shoe', 'bubble', 'devil', 'needle']), // 第一梯队：速度鞋、泡泡数、红魔（瞬间拉满速度）
+//   new Set(['potion', 'gremlin']),        // 第二梯队：威力泡泡、紫魔（瞬间拉满威力）——放最后
+// ];
+
+const GROWTH_TIERS = [
+  new Set(['shoe', 'bubble', 'devil', 'needle']), // 第一梯队：速度鞋、泡泡数、红魔（瞬间拉满速度）
+  new Set(['owl', 'pirateTurtle']), // 坐骑
+  new Set(['potion', 'gremlin']),        // 第二梯队：威力泡泡、紫魔（瞬间拉满威力）——放最后
+];
+
+
 // 可达安全空地 / 当前地图总空地 达到这个比例，才算"大片生存空间"
-const OPEN_SPACE_THRESHOLD = 0.45;
+const OPEN_SPACE_THRESHOLD = 0.60;
 // 哪怕空间够大，敌人近到这个曼哈顿距离（格）内也不优先捡道具，先顾眼前
-const NEAR_ENEMY_GRACE = 3;
+const NEAR_ENEMY_GRACE = 4;
 
 // 只给这个外部机器人加"空档期优先抢成长道具"的策略，不改动 server/bot.js，
 // 所以内置 Bot（房间补位用的那些）行为完全不受影响。
 // 通过继承 BotBrain 并重写 findObjective 实现：其余决策（逃命/放泡/追人/炸墙）
 // 全部复用父类原逻辑，只在"没什么紧急事"时插入一段"优先去捡道具"的判断。
 class GrowthPriorityBrain extends BotBrain {
+    // findObjective(game, me, tx, ty, danger) {
+    //     const items = game.items;
+    //     const enemies = [...game.players.values()].filter(
+    //         (p) => p.id !== this.id && p.alive && !p.trapped,
+    //     );
+
+    //     const growthAvailable = items.some((it) => GROWTH_ITEMS.has(it.kind));
+    //     if (growthAvailable) {
+    //         const nearestEnemyDist = enemies.length
+    //         ? Math.min(...enemies.map((e) => Math.abs(tile(e.x) - tx) + Math.abs(tile(e.y) - ty)))
+    //         : Infinity;
+    //         if (nearestEnemyDist >= NEAR_ENEMY_GRACE
+    //             && this.safeSpaceRatio(game, tx, ty, danger) >= OPEN_SPACE_THRESHOLD) {
+    //             const growthGoal = (x, y) => items.some((it) => x === it.x && y === it.y && GROWTH_ITEMS.has(it.kind));
+    //         const path = this.bfs(game, tx, ty, growthGoal, { avoid: danger });
+    //         if (path && path.length) return path;
+    //             }
+    //     }
+
+    //     // 没触发"空档抢道具"时，原样走父类逻辑（追人/捡任意道具/炸软块）
+    //     return super.findObjective(game, me, tx, ty, danger);
+    // }
+
     findObjective(game, me, tx, ty, danger) {
         const items = game.items;
         const enemies = [...game.players.values()].filter(
-            (p) => p.id !== this.id && p.alive && !p.trapped,
+        (p) => p.id !== this.id && p.alive && !p.trapped,
         );
-
-        const growthAvailable = items.some((it) => GROWTH_ITEMS.has(it.kind));
+    
+        const growthAvailable = items.some((it) => GROWTH_TIERS.some((tier) => tier.has(it.kind)));
         if (growthAvailable) {
-            const nearestEnemyDist = enemies.length
+        const nearestEnemyDist = enemies.length
             ? Math.min(...enemies.map((e) => Math.abs(tile(e.x) - tx) + Math.abs(tile(e.y) - ty)))
             : Infinity;
-            if (nearestEnemyDist >= NEAR_ENEMY_GRACE
-                && this.safeSpaceRatio(game, tx, ty, danger) >= OPEN_SPACE_THRESHOLD) {
-                const growthGoal = (x, y) => items.some((it) => x === it.x && y === it.y && GROWTH_ITEMS.has(it.kind));
-            const path = this.bfs(game, tx, ty, growthGoal, { avoid: danger });
+        if (nearestEnemyDist >= NEAR_ENEMY_GRACE
+            && this.safeSpaceRatio(game, tx, ty, danger) >= OPEN_SPACE_THRESHOLD) {
+            // 按梯队顺序依次尝试：这一梯队场上没有就跳过；有但BFS走不到（比如被危险格挡住）
+            // 就落到下一梯队，都不行才交给父类逻辑兜底
+            for (const tier of GROWTH_TIERS) {
+            if (!items.some((it) => tier.has(it.kind))) continue;
+            const tierGoal = (x, y) => items.some((it) => x === it.x && y === it.y && tier.has(it.kind));
+            const path = this.bfs(game, tx, ty, tierGoal, { avoid: danger });
             if (path && path.length) return path;
-                }
+            }
         }
-
+        }
+    
         // 没触发"空档抢道具"时，原样走父类逻辑（追人/捡任意道具/炸软块）
         return super.findObjective(game, me, tx, ty, danger);
     }
+
 
     // 从(sx,sy)出发、避开danger格，BFS能到达的空地格数 / 当前地图空地总格数。
     // 用作"当前处境有多宽裕"的量化指标：越接近1说明活动范围越不受限，
@@ -257,6 +311,7 @@ class SimPlayerBot {
             case S.GAME_START:
                 this.view.applyGameStart(msg);
                 this.brain = new GrowthPriorityBrain(this.myId);
+                // this.brain = new BotBrain(this.myId);
                 console.log(`[${this.name}] 对局开始`);
                 break;
 

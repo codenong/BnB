@@ -8,6 +8,18 @@ import { CHARACTERS, DEFAULT_CHAR, isValidChar } from './characters.js';
 const MAX_PLAYERS = 6;
 const MIN_PLAYERS = 6; // 开局人数不足时用 Bot 补到这个数
 
+function random_name()
+{
+    /* 骰子随机昵称 */
+    const FIRST = ['快乐', '无敌', '闪电', '暴走', '泡泡', '奶茶', '深海', '元气', '榴莲', '章鱼', '海盗', '甜心', '蓝莓', '冲锋'];
+    const SECOND = ['宝宝', '小乖', '战士', '船长', '鱼丸', '果冻', '皮皮', '球球', '大侠', '萌新', '骑士', '魔王', '胖胖', '糖豆'];
+      const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+      let name = pick(FIRST) + pick(SECOND);
+      if (Math.random() < 0.25) name += ((Math.random() * 98) | 0) + 1;
+      return name.slice(0, 12);
+}
+
+
 export class Lobby {
   constructor({ random = Math.random } = {}) {
     this.random = random;
@@ -29,6 +41,7 @@ export class Lobby {
       case C.HELLO: return this.onHello(ws, msg);
       case C.CREATE_ROOM: return client && this.onCreateRoom(client);
       case C.JOIN_ROOM: return client && this.onJoinRoom(client, msg);
+      case C.SPECTATE_ROOM: return client && this.onSpectateRoom(client, msg);
       case C.LEAVE_ROOM: return client && this.onLeaveRoom(client);
       case C.READY: return client && this.onReady(client, msg);
       case C.SELECT_CHAR: return client && this.onSelectChar(client, msg);
@@ -84,11 +97,19 @@ export class Lobby {
   publicRoom(room) {
     return {
       id: room.id, name: room.name, hostId: room.hostId, inGame: room.inGame,
+      spectators: room.spectators.size,
       // colorIndex 按 slot 顺序分配：进入房间时每个玩家一个颜色（同款角色也有不同颜色版本）
       players: room.players.map((p, i) => ({
         id: p.id, name: p.name, ready: p.ready, isBot: !!p.isBot, char: p.char, colorIndex: i,
       })),
     };
+  }
+
+  // 玩家静态名册（gameStart 用）：id/名字/是否Bot/角色/队伍颜色，按 slot 顺序
+  playersDesc(room) {
+    return room.players.map((p, i) => ({
+      id: p.id, name: p.name, isBot: !!p.isBot, char: p.char, colorIndex: i,
+    }));
   }
 
   broadcastLobby() {
@@ -103,6 +124,10 @@ export class Lobby {
       const c = this.byId.get(p.id);
       if (c && c.ws.readyState === 1) c.ws.send(raw);
     }
+    for (const specId of room.spectators) {
+      const c = this.byId.get(specId);
+      if (c && c.ws.readyState === 1) c.ws.send(raw);
+    }
   }
 
   broadcastRoomState(room) {
@@ -110,13 +135,13 @@ export class Lobby {
   }
 
   onCreateRoom(client) {
-    if (client.roomId) this.onLeaveRoom(client);
+    if (client.roomId) this.leaveCurrentRoom(client);
     const room = {
       id: `r${this.seq++}`, name: `${client.name} 的房间`, hostId: client.id,
       players: [{
         id: client.id, name: client.name, ready: false, isBot: false, char: DEFAULT_CHAR,
       }],
-      inGame: false, game: null, brains: null, interval: null,
+      inGame: false, game: null, brains: null, interval: null, spectators: new Set(),
     };
     console.log(`New room id: ${room.id}`);
     this.rooms.set(room.id, room);
@@ -131,7 +156,7 @@ export class Lobby {
     if (client.roomId === room.id) return undefined;
     if (room.inGame) return this.error(client, '该房间正在对战中');
     if (room.players.length >= MAX_PLAYERS) return this.error(client, '房间已满');
-    if (client.roomId) this.onLeaveRoom(client);
+    if (client.roomId) this.leaveCurrentRoom(client);
     // 加入房间默认就是准备状态，可在房间内取消
     room.players.push({
       id: client.id, name: client.name, ready: true, isBot: false, char: DEFAULT_CHAR,
@@ -142,26 +167,62 @@ export class Lobby {
     return undefined;
   }
 
+  // 纯观战：不占玩家位、不用选角色，能收到这个房间之后所有的 room/state/chat/gameOver 广播。
+  // 对局中也能中途加入观战（真正的玩家加入则不行，见上面 onJoinRoom 的 inGame 检查）。
+  // 视角上，客户端会把 gameStart 的 yourId 当成"要跟拍/显示 HUD 的那个人"：
+  // 这里用房主的 id，让观众获得"跟着房主视角看"的体验，不用改客户端摄像机逻辑。
+  onSpectateRoom(client, msg) {
+    const room = this.rooms.get(msg.roomId);
+    if (!room) return this.error(client, '房间不存在');
+    if (client.roomId === room.id && room.spectators.has(client.id)) return undefined;
+    if (client.roomId) this.leaveCurrentRoom(client);
+    room.spectators.add(client.id);
+    client.roomId = room.id;
+    this.send(client.ws, { t: S.ROOM, room: this.publicRoom(room) });
+    if (room.inGame && room.game) {
+      this.send(client.ws, {
+        t: S.GAME_START,
+        map: room.game.gridRows(),
+                players: this.playersDesc(room),
+                yourId: room.hostId,
+                tileSize: TILE,
+      });
+      this.send(client.ws, { t: S.STATE, ...room.game.snapshot() });
+    }
+    this.broadcastLobby();
+    return undefined;
+  }
+
   onLeaveRoom(client) {
+    this.leaveCurrentRoom(client);
+    this.send(client.ws, { t: S.LOBBY, rooms: this.roomList() });
+    this.broadcastLobby();
+  }
+
+  // 把客户端从当前所在的房间移除（不管之前是玩家还是观众），处理房间清理/房主转移。
+  // 不负责"回大厅"相关的播报，调用方各自决定要不要发（onLeaveRoom 发，
+  // onCreateRoom/onJoinRoom/onSpectateRoom 紧接着会发新房间的状态，不用重复发大厅列表）
+  leaveCurrentRoom(client) {
     const room = this.rooms.get(client.roomId);
     client.roomId = null;
-    if (room) {
+    if (!room) return;
+    if (room.spectators.has(client.id)) {
+      room.spectators.delete(client.id);
+      return; // 观众离开不影响玩家列表/房主/开局逻辑，也不用重新广播房间状态
+    }
       if (room.inGame && room.game) {
         // 对局中离开 = 阵亡，游戏结束时统一清理
         room.game.markDisconnected(client.id);
         room.players = room.players.filter((p) => p.id !== client.id);
       } else {
         room.players = room.players.filter((p) => p.id !== client.id);
-        if (room.players.length === 0) {
+      if (room.players.length === 0 && room.spectators.size === 0) {
           this.rooms.delete(room.id);
-        } else {
-          if (room.hostId === client.id) room.hostId = room.players[0].id; // 房主移交
+        return;
+      }
+      if (room.hostId === client.id && room.players.length) room.hostId = room.players[0].id;
           this.broadcastRoomState(room);
         }
-      }
-    }
-    this.send(client.ws, { t: S.LOBBY, rooms: this.roomList() });
-    this.broadcastLobby();
   }
 
   onReady(client, msg) {
@@ -226,8 +287,10 @@ export class Lobby {
     // Bot 补位到最少 6 人；Bot 随机角色，以角色名命名
     while (room.players.length < MIN_PLAYERS) {
       const ch = CHARACTERS[Math.floor(this.random() * CHARACTERS.length)];
+      let bot_name = random_name();
       room.players.push({
-        id: `b${this.seq++}`, name: `${ch.name}(Bot)`, ready: true, isBot: true, char: ch.id,
+        // id: `b${this.seq++}`, name: `${ch.name}(Bot)`, ready: true, isBot: true, char: ch.id,
+        id: `b${this.seq++}`, name: `${bot_name}`, ready: true, isBot: true, char: ch.id,
       });
     }
     room.inGame = true;
@@ -239,13 +302,18 @@ export class Lobby {
     );
     room.brains = new Map();
     for (const p of room.players) if (p.isBot) room.brains.set(p.id, new BotBrain(p.id));
-    const desc = room.players.map((p, i) => ({
-      id: p.id, name: p.name, isBot: !!p.isBot, char: p.char, colorIndex: i,
-    }));
+    const desc = this.playersDesc(room);
     for (const p of room.players) {
       if (p.isBot) continue;
       this.sendTo(p.id, {
         t: S.GAME_START, map: room.game.gridRows(), players: desc, yourId: p.id, tileSize: TILE,
+      });
+    }
+    // 开局前就已经在房间里的观众也要收到 gameStart，才能初始化画面；
+    // yourId 用房主的，观众客户端据此"跟拍"房主视角（不用改客户端摄像机逻辑）
+    for (const specId of room.spectators) {
+      this.sendTo(specId, {
+        t: S.GAME_START, map: room.game.gridRows(), players: desc, yourId: room.hostId, tileSize: TILE,
       });
     }
     room.interval = setInterval(() => this.tickRoom(room), 1000 / TICK_RATE);
@@ -283,10 +351,12 @@ export class Lobby {
     room.game = null;
     room.brains = null;
     room.interval = null;
-    if (room.players.length === 0) {
+    if (room.players.length === 0 && room.spectators.size === 0) {
       this.rooms.delete(room.id);
     } else {
-      if (!room.players.some((p) => p.id === room.hostId)) room.hostId = room.players[0].id;
+      if (room.players.length && !room.players.some((p) => p.id === room.hostId)) {
+        room.hostId = room.players[0].id;
+      }
       this.broadcastRoomState(room);
     }
     this.broadcastLobby();
@@ -297,20 +367,7 @@ export class Lobby {
     if (!client) return;
     this.clients.delete(ws);
     this.byId.delete(client.id);
-    const room = this.rooms.get(client.roomId);
-    if (room) {
-      if (room.inGame && room.game) {
-        room.game.markDisconnected(client.id); // 对局中断线按死亡处理
-      } else {
-        room.players = room.players.filter((p) => p.id !== client.id);
-        if (room.players.length === 0) {
-          this.rooms.delete(room.id);
-        } else {
-          if (room.hostId === client.id) room.hostId = room.players[0].id;
-          this.broadcastRoomState(room);
-        }
-      }
-    }
+    this.leaveCurrentRoom(client);
     this.broadcastLobby();
   }
 
